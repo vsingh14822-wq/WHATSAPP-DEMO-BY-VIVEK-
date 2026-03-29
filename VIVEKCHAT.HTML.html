@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VivekChat - Professional Messaging</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background-color: #0b141a;
+            color: #e9edef;
+            overflow-x: hidden;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .chat-bg {
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10z' fill='%231e293b' fill-opacity='0.1'/%3E%3C/svg%3E");
+        }
+
+        .message-sent {
+            background: #005c4b;
+            border-radius: 8px 8px 0 8px;
+        }
+        
+        .message-received {
+            background: #202c33;
+            border-radius: 8px 8px 8px 0;
+        }
+
+        .status-ring {
+            border: 3px solid #00a884;
+            padding: 2px;
+            border-radius: 50%;
+        }
+
+        .nav-active {
+            color: #00a884;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .glass-effect {
+            background: rgba(32, 44, 51, 0.95);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="max-w-md mx-auto min-h-screen bg-[#0b141a] relative overflow-hidden">
+
+    <!-- Main Container -->
+    <div id="app" class="relative h-screen flex flex-col">
+        
+        <!-- Header -->
+        <header class="bg-[#202c33] px-4 py-3 flex items-center justify-between z-20 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#00a884] to-[#00a884] flex items-center justify-center font-bold text-white">
+                    V
+                </div>
+                <h1 class="text-xl font-bold text-white">VivekChat</h1>
+            </div>
+            <div class="flex items-center gap-4 text-[#00a884]">
+                <button onclick="app.toggleSearch()" class="hover:text-white transition"><i class="fas fa-qrcode text-lg"></i></button>
+                <button onclick="app.newChat()" class="hover:text-white transition"><i class="fas fa-camera text-lg"></i></button>
+                <button class="hover:text-white transition relative" onclick="app.toggleMenu()">
+                    <i class="fas fa-ellipsis-v text-lg"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Search Bar -->
+        <div id="searchBar" class="hidden px-3 py-2 bg-[#111b21] border-b border-[#202c33]">
+            <div class="bg-[#202c33] rounded-full flex items-center px-4 py-2 gap-3">
+                <i class="fas fa-search text-[#8696a0]"></i>
+                <input type="text" id="searchInput" placeholder="Search chats, contacts..." 
+                       class="bg-transparent border-none outline-none text-sm text-white w-full"
+                       oninput="app.handleSearch(this.value)">
+            </div>
+        </div>
+
+        <!-- Filter Chips -->
+        <div id="filterChips" class="flex gap-2 px-3 py-2 overflow-x-auto scrollbar-hide bg-[#0b141a]">
+            <button onclick="app.filterChats('all')" class="filter-chip active bg-[#00a884] text-white px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition">All</button>
+            <button onclick="app.filterChats('unread')" class="filter-chip bg-[#202c33] text-[#8696a0] px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap hover:bg-[#2a3942] transition">Unread</button>
+            <button onclick="app.filterChats('groups')" class="filter-chip bg-[#202c33] text-[#8696a0] px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap hover:bg-[#2a3942] transition">Groups</button>
+            <button onclick="app.openContacts()" class="bg-[#202c33] text-[#8696a0] px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap hover:bg-[#2a3942] transition">
+                <i class="fas fa-user-plus mr-1"></i> New
+            </button>
+        </div>
+
+        <!-- Content Area -->
+        <main class="flex-1 overflow-y-auto relative bg-[#0b141a]" id="mainContent">
+            
+            <!-- Chats Tab -->
+            <div id="chatsTab" class="tab-content block">
+                <!-- Archived -->
+                <div class="flex items-center gap-4 px-4 py-3 hover:bg-[#202c33] cursor-pointer transition border-b border-[#202c33]/30" onclick="app.showArchived()">
+                    <i class="fas fa-archive text-[#8696a0] text-lg"></i>
+                    <span class="text-[#e9edef] font-medium">Archived</span>
+                    <span id="archivedCount" class="ml-auto text-[#00a884] text-sm bg-[#00a884]/10 px-2 py-0.5 rounded-full">3</span>
+                </div>
+
+                <!-- Chat List -->
+                <div id="chatList" class="divide-y divide-[#202c33]/30">
+                    <!-- Chats will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <!-- Updates Tab -->
+            <div id="updatesTab" class="tab-content hidden">
+                <div class="p-4">
+                    <h2 class="text-[#00a884] font-semibold text-sm mb-4">Status</h2>
+                    
+                    <!-- My Status -->
+                    <div class="flex items-center gap-4 mb-6 p-3 hover:bg-[#202c33] rounded-lg cursor-pointer transition" onclick="app.addStatus()">
+                        <div class="relative">
+                            <img src="https://ui-avatars.com/api/?name=Vivek&background=00a884&color=fff" class="w-14 h-14 rounded-full">
+                            <div class="absolute bottom-0 right-0 bg-[#00a884] rounded-full w-6 h-6 flex items-center justify-center border-2 border-[#111b21]">
+                                <i class="fas fa-plus text-white text-xs"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-[#e9edef] font-medium">My status</h3>
+                            <p class="text-[#8696a0] text-sm">Tap to add status update</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Updates -->
+                    <h3 class="text-[#8696a0] font-medium text-xs mb-3 px-3">Recent updates</h3>
+                    <div id="statusList" class="space-y-1">
+                        <!-- Status items will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calls Tab -->
+            <div id="callsTab" class="tab-content hidden">
+                <div class="flex gap-4 p-4 overflow-x-auto">
+                    <button onclick="app.startCall()" class="flex flex-col items-center gap-2 min-w-[80px] p-3 rounded-full bg-[#202c33] hover:bg-[#2a3942] transition">
+                        <div class="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <span class="text-xs text-[#8696a0]">New Call</span>
+                    </button>
+                    <button onclick="app.scheduleCall()" class="flex flex-col items-center gap-2 min-w-[80px] p-3 rounded-full bg-[#202c33] hover:bg-[#2a3942] transition">
+                        <div class="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <span class="text-xs text-[#8696a0]">Schedule</span>
+                    </button>
+                    <button onclick="app.createCallLink()" class="flex flex-col items-center gap-2 min-w-[80px] p-3 rounded-full bg-[#202c33] hover:bg-[#2a3942] transition">
+                        <div class="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white">
+                            <i class="fas fa-link"></i>
+                        </div>
+                        <span class="text-xs text-[#8696a0]">Create Link</span>
+                    </button>
+                </div>
+
+                <div class="px-4 py-2">
+                    <h2 class="text-[#e9edef] font-semibold text-lg mb-2">Recent</h2>
+                    <div id="callList" class="divide-y divide-[#202c33]/30">
+                        <!-- Call history will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Communities Tab -->
+            <div id="communitiesTab" class="tab-content hidden p-4">
+                <div class="text-center py-8">
+                    <i class="fas fa-users text-6xl text-[#00a884] mb-4"></i>
+                    <h2 class="text-xl font-bold text-white mb-2">Communities</h2>
+                    <p class="text-[#8696a0] text-sm mb-4">Bring your groups together under one roof</p>
+                    <button onclick="app.createCommunity()" class="bg-[#00a884] text-white px-6 py-2 rounded-full font-medium hover:bg-[#008f6f] transition">
+                        Create Community
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Chat Detail View (Overlay) -->
+        <div id="chatDetailView" class="absolute inset-0 bg-[#0b141a] z-50 hidden flex-col chat-bg">
+            <!-- Chat Header -->
+            <div class="bg-[#202c33] px-2 py-2 flex items-center gap-2 shadow-lg">
+                <button onclick="app.closeChat()" class="w-10 h-10 flex items-center justify-center text-[#8696a0] hover:bg-[#374045] rounded-full transition">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <img id="chatDetailAvatar" src="" class="w-10 h-10 rounded-full">
+                <div class="flex-1 cursor-pointer" onclick="app.showContactInfo()">
+                    <h3 id="chatDetailName" class="text-[#e9edef] font-medium text-sm"></h3>
+                    <p id="chatDetailStatus" class="text-[#8696a0] text-xs">online</p>
+                </div>
+                <div class="flex gap-3 text-[#00a884] px-2">
+                    <button onclick="app.videoCall()" class="hover:text-white transition"><i class="fas fa-video text-lg"></i></button>
+                    <button onclick="app.voiceCall()" class="hover:text-white transition"><i class="fas fa-phone text-lg"></i></button>
+                    <button onclick="app.chatMoreOptions()" class="hover:text-white transition"><i class="fas fa-ellipsis-v text-lg"></i></button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-2">
+                <!-- Messages will be dynamically inserted -->
+            </div>
+
+            <!-- Typing Indicator -->
+            <div id="typingIndicator" class="hidden px-4 py-2 bg-[#202c33]/50">
+                <div class="flex items-center gap-2 text-[#8696a0] text-sm">
+                    <div class="flex gap-1">
+                        <span class="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce"></span>
+                        <span class="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                        <span class="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                    </div>
+                    <span>typing...</span>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="bg-[#202c33] px-2 py-2 flex items-center gap-2">
+                <button onclick="app.toggleEmoji()" class="w-10 h-10 flex items-center justify-center text-[#8696a0] hover:text-white transition">
+                    <i class="far fa-smile text-xl"></i>
+                </button>
+                <button onclick="app.attachFile()" class="w-10 h-10 flex items-center justify-center text-[#8696a0] hover:text-white transition">
+                    <i class="fas fa-paperclip text-xl"></i>
+                </button>
+                <input type="text" id="messageInput" placeholder="Message" 
+                       class="flex-1 bg-[#2a3942] text-[#e9edef] rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#00a884]/50"
+                       onkeypress="app.handleMessageKeypress(event)">
+                <button onclick="app.sendMessage()" class="w-10 h-10 flex items-center justify-center text-[#00a884] hover:text-white transition">
+                    <i class="fas fa-microphone text-xl" id="sendRecordIcon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Action Button -->
+        <div id="fabContainer" class="absolute bottom-20 right-4 z-30 flex flex-col items-end pointer-events-none">
+            <button onclick="app.toggleFab()" class="w-14 h-14 bg-[#00a884] rounded-2xl shadow-lg flex items-center justify-center text-white text-xl hover:bg-[#008f6f] transition pointer-events-auto">
+                <i class="fas fa-comment" id="fabIcon"></i>
+            </button>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="bg-[#202c33] px-2 py-2 flex justify-around items-center z-20 border-t border-[#111b21] shadow-lg">
+            <button onclick="app.switchTab('chats')" class="nav-item nav-active flex flex-col items-center gap-1 w-16 py-1 transition" data-tab="chats">
+                <i class="far fa-comment-dots text-xl"></i>
+                <span class="text-xs font-medium">Chats</span>
+                <span id="chatsBadge" class="bg-[#00a884] text-white text-[10px] px-1.5 rounded-full hidden">0</span>
+            </button>
+            <button onclick="app.switchTab('updates')" class="nav-item flex flex-col items-center gap-1 w-16 py-1 text-[#8696a0] transition" data-tab="updates">
+                <i class="far fa-circle-notch text-xl"></i>
+                <span class="text-xs font-medium">Updates</span>
+            </button>
+            <button onclick="app.switchTab('communities')" class="nav-item flex flex-col items-center gap-1 w-16 py-1 text-[#8696a0] transition" data-tab="communities">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs font-medium">Communities</span>
+            </button>
+            <button onclick="app.switchTab('calls')" class="nav-item flex flex-col items-center gap-1 w-16 py-1 text-[#8696a0] transition" data-tab="calls">
+                <i class="fas fa-phone text-xl"></i>
+                <span class="text-xs font-medium">Calls</span>
+                <span id="callsBadge" class="bg-red-500 text-white text-[10px] px-1.5 rounded-full hidden">0</span>
+            </button>
+        </nav>
+
+        <!-- Modals -->
+        <!-- Contacts Modal -->
+        <div id="contactsModal" class="hidden absolute inset-0 bg-[#0b141a] z-50 flex-col">
+            <div class="bg-[#202c33] px-4 py-3 flex items-center gap-3">
+                <button onclick="app.closeContacts()" class="text-[#8696a0]"><i class="fas fa-arrow-left"></i></button>
+                <h2 class="text-lg font-bold text-white">Select contact</h2>
+                <span class="text-[#8696a0] text-sm ml-auto">95 contacts</span>
+            </div>
+            <div class="p-3">
+                <div class="bg-[#202c33] rounded-full flex items-center px-4 py-2 gap-3 mb-3">
+                    <i class="fas fa-search text-[#8696a0]"></i>
+                    <input type="text" placeholder="Search contacts" class="bg-transparent border-none outline-none text-sm text-white w-full">
+                </div>
+            </div>
+            <div id="contactsList" class="flex-1 overflow-y-auto divide-y divide-[#202c33]/30">
+                <!-- Contacts will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Menu Dropdown -->
+        <div id="menuDropdown" class="hidden absolute top-16 right-4 bg-[#202c33] rounded-lg shadow-xl z-40 py-2 w-48">
+            <button onclick="app.newGroup()" class="w-full px-4 py-2 text-left text-[#e9edef] hover:bg-[#2a3942] transition flex items-center gap-3">
+                <i class="fas fa-users text-[#00a884]"></i> New group
+            </button>
+            <button onclick="app.newBroadcast()" class="w-full px-4 py-2 text-left text-[#e9edef] hover:bg-[#2a3942] transition flex items-center gap-3">
+                <i class="fas fa-bullhorn text-[#00a884]"></i> New broadcast
+            </button>
+            <button onclick="app.starredMessages()" class="w-full px-4 py-2 text-left text-[#e9edef] hover:bg-[#2a3942] transition flex items-center gap-3">
+                <i class="fas fa-star text-[#00a884]"></i> Starred messages
+            </button>
+            <div class="border-t border-[#2a3942] my-1"></div>
+            <button onclick="app.settings()" class="w-full px-4 py-2 text-left text-[#e9edef] hover:bg-[#2a3942] transition flex items-center gap-3">
+                <i class="fas fa-cog text-[#00a884]"></i> Settings
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // VivekChat Application
+        const app = {
+            currentTab: 'chats',
+            currentChat: null,
+            filter: 'all',
+            
+            // Data
+            chats: [
+                { id: 1, name: 'LASSS Class 2nd 2025-26', avatar: 'https://ui-avatars.com/api/?name=LASSS+2nd&background=0D8ABC&color=fff', 
+                  message: '+91 91492 55043: Dear Parents The Final Re...', time: '8:46 PM', unread: 2, type: 'group' },
+                { id: 2, name: 'LASSS class 3rd 2025-26', avatar: 'https://ui-avatars.com/api/?name=LASSS+3rd&background=FF5722&color=fff', 
+                  message: '+91 89796 49992: Dear Parents The Final Re...', time: '8:39 PM', unread: 1, type: 'group' },
+                { id: 3, name: 'LASSS Class 8th 2025-26', avatar: 'https://ui-avatars.com/api/?name=LASSS+8th&background=4CAF50&color=fff', 
+                  message: '+91 70605 52338: Dear Parents The Final Re...', time: '8:08 PM', unread: 0, type: 'group' },
+                { id: 4, name: 'Ram Kishan Singh', avatar: 'https://ui-avatars.com/api/?name=Ram+Kishan&background=9C27B0&color=fff', 
+                  message: 'Desktop mode me chala na', time: '3:15 PM', unread: 0, type: 'individual', phone: '+91 9876543210' },
+                { id: 5, name: 'Shaurya', avatar: 'https://ui-avatars.com/api/?name=Shaurya&background=E91E63&color=fff', 
+                  message: 'Missed voice call', time: 'Yesterday', unread: 1, type: 'individual', phone: '+91 9876543211' },
+                { id: 6, name: 'Rajesh Babul Gaug', avatar: 'https://ui-avatars.com/api/?name=Rajesh+Babul&background=2196F3&color=fff', 
+                  message: 'DEMO ONLY BHAIYA REVIEW IT AND GIVE...', time: 'Yesterday', unread: 0, type: 'individual', phone: '+91 9876543212' },
+            ],
+            
+            messages: {
+                1: [
+                    { id: 1, text: 'Dear Parents, The Final Result will be declared soon.', sent: false, time: '8:45 PM', status: 'read' },
+                    { id: 2, text: 'Thank you for the update!', sent: true, time: '8:46 PM', status: 'read' },
+                ],
+                4: [
+                    { id: 1, text: 'Hey! How are you?', sent: true, time: '3:10 PM', status: 'read' },
+                    { id: 2, text: 'I am good, thanks!', sent: false, time: '3:12 PM', status: 'read' },
+                    { id: 3, text: 'Desktop mode me chala na', sent: false, time: '3:15 PM', status: 'read' },
+                ],
+                5: [
+                    { id: 1, text: 'Can we meet tomorrow?', sent: false, time: 'Yesterday', status: 'read' },
+                ]
+            },
+            
+            calls: [
+                { id: 1, name: 'Ram Kishan Singh', avatar: 'https://ui-avatars.com/api/?name=Ram+Kishan&background=9C27B0&color=fff', 
+                  type: 'incoming', time: 'Today, 11:19 AM', duration: '5:23', missed: false },
+                { id: 2, name: 'Ram Kishan Singh', avatar: 'https://ui-avatars.com/api/?name=Ram+Kishan&background=9C27B0&color=fff', 
+                  type: 'outgoing', time: 'Yesterday, 9:30 PM', duration: '2:15', missed: false },
+                { id: 3, name: 'Ram Kishan Singh (2)', avatar: 'https://ui-avatars.com/api/?name=Ram+Kishan&background=9C27B0&color=fff', 
+                  type: 'outgoing', time: 'Yesterday, 9:30 PM', duration: null, missed: true },
+                { id: 4, name: 'Shaurya', avatar: 'https://ui-avatars.com/api/?name=Shaurya&background=E91E63&color=fff', 
+                  type: 'incoming', time: 'Yesterday, 8:14 AM', duration: null, missed: true },
+                { id: 5, name: 'Shaurya (2)', avatar: 'https://ui-avatars.com/api/?name=Shaurya&background=E91E63&color=fff', 
+                  type: 'outgoing', time: 'Yesterday, 7:53 AM', duration: '0:45', missed: false },
+                { id: 6, name: 'Rajesh Babul Gaug (3)', avatar: 'https://ui-avatars.com/api/?name=Rajesh+Babul&background=2196F3&color=fff', 
+                  type: 'incoming', time: 'March 26, 8:28 PM', duration: '12:34', missed: false },
+            ],
+            
+            statuses: [
+                { id: 1, name: 'Anu Didi', avatar: 'https://ui-avatars.com/api/?name=Anu+Didi&background=FF9800&color=fff', 
+                  time: '9:47 PM', viewed: false, image: 'https://picsum.photos/seed/status1/300/500' },
+                { id: 2, name: 'Afsana Tution67', avatar: 'https://ui-avatars.com/api/?name=Afsana&background=E91E63&color=fff', 
+                  time: '10:18 PM', viewed: false, image: 'https://picsum.photos/seed/status2/300/500' },
+                { id: 3, name: 'Kanak Savni Jewels', avatar: 'https://ui-avatars.com/api/?name=Kanak&background=607D8B&color=fff', 
+                  time: '4:20 PM', viewed: true, image: 'https://picsum.photos/seed/status3/300/500' },
+                { id: 4, name: 'Sabita Sharma', avatar: 'https://ui-avatars.com/api/?name=Sabita&background=795548&color=fff', 
+                  time: '4:15 PM', viewed: true, image: 'https://picsum.photos/seed/status4/300/500' },
+            ],
+            
+            contacts: [
+                { id: 1, name: '+91 70781 83717 (You)', avatar: 'https://ui-avatars.com/api/?name=Me&background=00a884&color=fff', phone: '+91 70781 83717' },
+                { id: 2, name: 'A Emotorad', avatar: 'https://ui-avatars.com/api/?name=A+Emotorad&background=4CAF50&color=fff', phone: '+91 9876543213' },
+                { id: 3, name: 'Afsana Tution67', avatar: 'https://ui-avatars.com/api/?name=Afsana&background=E91E63&color=fff', phone: '+91 9876543214' },
+                { id: 4, name: 'Ajay Singh', avatar: 'https://ui-avatars.com/api/?name=Ajay+Singh&background=2196F3&color=fff', phone: '+91 9876543215' },
+                { id: 5, name: 'Anil Rasmai', avatar: 'https://ui-avatars.com/api/?name=Anil+Rasmai&background=FF9800&color=fff', phone: '+91 9876543216' },
+                { id: 6, name: 'Anu Didi', avatar: 'https://ui-avatars.com/api/?name=Anu+Didi&background=FF9800&color=fff', phone: '+91 9876543217' },
+                { id: 7, name: 'Anu Didi 2', avatar: 'https://ui-avatars.com/api/?name=Anu+Didi+2&background=9C27B0&color=fff', phone: '+91 9876543218' },
+                { id: 8, name: 'Anurag Singh', avatar: 'https://ui-avatars.com/api/?name=Anurag+Singh&background=00BCD4&color=fff', phone: '+91 9876543219' },
+            ],
+
+            init() {
+                this.renderChats();
+                this.renderCalls();
+                this.renderStatuses();
+                this.renderContacts();
+                this.updateBadges();
+            },
+
+            // Navigation
+            switchTab(tab) {
+                this.currentTab = tab;
+                
+                // Hide all tabs
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+                document.getElementById(tab + 'Tab').classList.remove('hidden');
+                
+                // Update nav
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('nav-active');
+                    item.classList.add('text-[#8696a0]');
+                    const icon = item.querySelector('i');
+                    if (icon.classList.contains('fas')) {
+                        icon.classList.replace('fas', 'far');
+                    }
+                });
+                
+                const activeNav = document.querySelector(`[data-tab="${tab}"]`);
+                activeNav.classList.add('nav-active');
+                activeNav.classList.remove('text-[#8696a0]');
+                const activeIcon = activeNav.querySelector('i');
+                if (activeIcon.classList.contains('far')) {
+                    activeIcon.classList.replace('far', 'fas');
+                }
+                
+                // Update FAB icon
+                const fabIcon = document.getElementById('fabIcon');
+                if (tab === 'chats') {
+                    fabIcon.className = 'fas fa-comment';
+                } else if (tab === 'calls') {
+                    fabIcon.className = 'fas fa-phone';
+                } else {
+                    fabIcon.className = 'fas fa-plus';
+                }
+            },
+
+            // Chat Functions
+            renderChats() {
+                const chatList = document.getElementById('chatList');
+                let filteredChats = this.chats;
+                
+                if (this.filter === 'unread') {
+                    filteredChats = this.chats.filter(c => c.unread > 0);
+                } else if (this.filter === 'groups') {
+                    filteredChats = this.chats.filter(c => c.type === 'group');
+                }
+                
+                if (this.searchQuery) {
+                    filteredChats = filteredChats.filter(c => 
+                        c.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+                    );
+                }
+                
+                chatList.innerHTML = filteredChats.map(chat => `
+                    <div class="flex items-center gap-3 px-3 py-2 hover:bg-[#202c33] cursor-pointer transition" onclick="app.openChat(${chat.id})">
+                        <img src="${chat.avatar}" class="w-12 h-12 rounded-full object-cover">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline mb-1">
+                                <h3 class="text-[#e9edef] font-medium truncate">${chat.name}</h3>
+                                <span class="text-[#8696a0] text-xs ml-2">${chat.time}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <p class="text-[#8696a0] text-sm truncate flex-1">${chat.message}</p>
+                                ${chat.unread > 0 ? `<span class="bg-[#00a884] text-white text-xs px-2 py-0.5 rounded-full ml-2">${chat.unread}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            },
+
+            openChat(chatId) {
+                this.currentChat = this.chats.find(c => c.id === chatId);
+                if (!this.currentChat) return;
+                
+                // Mark as read
+                this.currentChat.unread = 0;
+                this.updateBadges();
+                
+                // Update header
+                document.getElementById('chatDetailName').textContent = this.currentChat.name;
+                document.getElementById('chatDetailAvatar').src = this.currentChat.avatar;
+                document.getElementById('chatDetailStatus').textContent = this.currentChat.type === 'group' ? '12 participants' : 'online';
+                
+                // Render messages
+                this.renderMessages();
+                
+                // Show chat view
+                const chatView = document.getElementById('chatDetailView');
+                chatView.classList.remove('hidden');
+                chatView.classList.add('flex', 'animate-slide-up');
+            },
+
+            closeChat() {
+                const chatView = document.getElementById('chatDetailView');
+                chatView.classList.add('hidden');
+                chatView.classList.remove('flex');
+                this.currentChat = null;
+                this.renderChats();
+            },
+
+            renderMessages() {
+                const container = document.getElementById('messagesContainer');
+                const msgs = this.messages[this.currentChat.id] || [];
+                
+                container.innerHTML = msgs.map(msg => `
+                    <div class="flex ${msg.sent ? 'justify-end' : 'justify-start'}">
+                        <div class="${msg.sent ? 'message-sent' : 'message-received'} p-3 max-w-[75%] text-sm text-[#e9edef] relative shadow-md">
+                            ${msg.text}
+                            <span class="absolute bottom-1 right-2 text-[10px] text-[#8696a0] flex items-center gap-1">
+                                ${msg.time}
+                                ${msg.sent ? `<i class="fas fa-check-double ${msg.status === 'read' ? 'text-[#53bdeb]' : ''}"></i>` : ''}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                container.scrollTop = container.scrollHeight;
+            },
+
+            sendMessage() {
+                const input = document.getElementById('messageInput');
+                const text = input.value.trim();
+                if (!text || !this.currentChat) return;
+                
+                const now = new Date();
+                const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                
+                if (!this.messages[this.currentChat.id]) {
+                    this.messages[this.currentChat.id] = [];
+                }
+                
+                this.messages[this.currentChat.id].push({
+                    id: Date.now(),
+                    text: text,
+                    sent: true,
+                    time: time,
+                    status: 'sent'
+                });
+                
+                input.value = '';
+                this.renderMessages();
+                
+                // Simulate reply
+                setTimeout(() => this.showTyping(), 1000);
+                setTimeout(() => this.receiveMessage(), 3000);
+            },
+
+            showTyping() {
+                document.getElementById('typingIndicator').classList.remove('hidden');
+            },
+
+            receiveMessage() {
+                document.getElementById('typingIndicator').classList.add('hidden');
+                const now = new Date();
+                const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                
+                const replies = [
+                    'Thanks for the message!',
+                    'Got it, will check and get back to you.',
+                    'Sounds good! 👍',
+                    'Okay, noted.',
+                    'Can we discuss this later?'
+                ];
+                
+                this.messages[this.currentChat.id].push({
+                    id: Date.now(),
+                    text: replies[Math.floor(Math.random() * replies.length)],
+                    sent: false,
+                    time: time,
+                    status: 'read'
+                });
+                
+                this.renderMessages();
+                
+                // Update chat preview
+                const lastMsg = this.messages[this.currentChat.id].slice(-1)[0];
+                this.currentChat.message = lastMsg.text;
+                this.currentChat.time = time;
+                this.renderChats();
+            },
+
+            handleMessageKeypress(e) {
+                if (e.key === 'Enter') {
+                    this.sendMessage();
+                }
+            },
+
+            // Call Functions
+            renderCalls() {
+                const callList = document.getElementById('callList');
+                callList.innerHTML = this.calls.map(call => `
+                    <div class="flex items-center justify-between py-3">
+                        <div class="flex items-center gap-3 flex-1">
+                            <img src="${call.avatar}" class="w-10 h-10 rounded-full">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="${call.missed ? 'text-red-400' : 'text-[#e9edef]'} font-medium truncate">${call.name}</h3>
+                                <div class="flex items-center gap-1 text-xs ${call.missed ? 'text-red-400' : 'text-[#00a884]'}">
+                                    <i class="fas fa-arrow-${call.type === 'incoming' ? 'down-left' : 'up-right'}"></i>
+                                    ${call.time}
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="app.videoCallFromList(${call.id})" class="w-10 h-10 flex items-center justify-center text-[#00a884] hover:bg-[#202c33] rounded-full transition">
+                            <i class="fas fa-video"></i>
+                        </button>
+                    </div>
+                `).join('');
+            },
+
+            // Status Functions
+            renderStatuses() {
+                const statusList = document.getElementById('statusList');
+                statusList.innerHTML = this.statuses.map(status => `
+                    <div class="flex items-center gap-4 p-3 hover:bg-[#202c33] rounded-lg cursor-pointer transition" onclick="app.viewStatus(${status.id})">
+                        <div class="${status.viewed ? 'grayscale opacity-50' : 'status-ring'}">
+                            <img src="${status.avatar}" class="w-14 h-14 rounded-full">
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-[#e9edef] font-medium">${status.name}</h3>
+                            <p class="text-[#8696a0] text-sm">${status.time}</p>
+                        </div>
+                    </div>
+                `).join('');
+            },
+
+            // Contacts Functions
+            renderContacts() {
+                const contactsList = document.getElementById('contactsList');
+                contactsList.innerHTML = this.contacts.map(contact => `
+                    <div class="flex items-center gap-3 px-4 py-3 hover:bg-[#202c33] cursor-pointer transition" onclick="app.selectContact(${contact.id})">
+                        <img src="${contact.avatar}" class="w-12 h-12 rounded-full">
+                        <div class="flex-1">
+                            <h3 class="text-[#e9edef] font-medium">${contact.name}</h3>
+                            <p class="text-[#8696a0] text-sm">${contact.phone}</p>
+                        </div>
+                    </div>
+                `).join('');
+            },
+
+            // UI Functions
+            toggleSearch() {
+                const searchBar = document.getElementById('searchBar');
+                searchBar.classList.toggle('hidden');
+                if (!searchBar.classList.contains('hidden')) {
+                    document.getElementById('searchInput').focus();
+                }
+            },
+
+            handleSearch(query) {
+                this.searchQuery = query;
+                this.renderChats();
+            },
+
+            filterChats(filter) {
+                this.filter = filter;
+                document.querySelectorAll('.filter-chip').forEach(chip => {
+                    chip.classList.remove('bg-[#00a884]', 'text-white');
+                    chip.classList.add('bg-[#202c33]', 'text-[#8696a0]');
+                });
+                event.target.classList.remove('bg-[#202c33]', 'text-[#8696a0]');
+                event.target.classList.add('bg-[#00a884]', 'text-white');
+                this.renderChats();
+            },
+
+            toggleFab() {
+                if (this.currentTab === 'chats') {
+                    this.openContacts();
+                } else if (this.currentTab === 'calls') {
+                    this.startCall();
+                }
+            },
+
+            toggleMenu() {
+                const menu = document.getElementById('menuDropdown');
+                menu.classList.toggle('hidden');
+            },
+
+            openContacts() {
+                document.getElementById('contactsModal').classList.remove('hidden');
+                document.getElementById('contactsModal').classList.add('flex');
+            },
+
+            closeContacts() {
+                document.getElementById('contactsModal').classList.add('hidden');
+                document.getElementById('contactsModal').classList.remove('flex');
+            },
+
+            selectContact(contactId) {
+                const contact = this.contacts.find(c => c.id === contactId);
+                // Check if chat exists
+                let chat = this.chats.find(c => c.name === contact.name);
+                if (!chat) {
+                    chat = {
+                        id: Date.now(),
+                        name: contact.name,
+                        avatar: contact.avatar,
+                        message: 'Tap to start chatting',
+                        time: '',
+                        unread: 0,
+                        type: 'individual'
+                    };
+                    this.chats.unshift(chat);
+                    this.messages[chat.id] = [];
+                }
+                this.closeContacts();
+                this.openChat(chat.id);
+            },
+
+            updateBadges() {
+                const totalUnread = this.chats.reduce((sum, c) => sum + c.unread, 0);
+                const chatsBadge = document.getElementById('chatsBadge');
+                if (totalUnread > 0) {
+                    chatsBadge.textContent = totalUnread;
+                    chatsBadge.classList.remove('hidden');
+                } else {
+                    chatsBadge.classList.add('hidden');
+                }
+                
+                const missedCalls = this.calls.filter(c => c.missed).length;
+                const callsBadge = document.getElementById('callsBadge');
+                if (missedCalls > 0) {
+                    callsBadge.textContent = missedCalls;
+                    callsBadge.classList.remove('hidden');
+                } else {
+                    callsBadge.classList.add('hidden');
+                }
+            },
+
+            // Action Functions
+            newChat() {
+                alert('Camera feature - Capture photo or video to share');
+            },
+
+            addStatus() {
+                alert('Add Status - Choose from gallery or capture new');
+            },
+
+            viewStatus(id) {
+                const status = this.statuses.find(s => s.id === id);
+                alert(`Viewing status from ${status.name}`);
+                status.viewed = true;
+                this.renderStatuses();
+            },
+
+            startCall() {
+                alert('Starting new call...');
+            },
+
+            scheduleCall() {
+                alert('Schedule Call - Select date and time');
+            },
+
+            createCallLink() {
+                alert('Call link created! Share with contacts.');
+            },
+
+            videoCall() {
+                alert(`Starting video call with ${this.currentChat.name}`);
+            },
+
+            voiceCall() {
+                alert(`Starting voice call with ${this.currentChat.name}`);
+            },
+
+            videoCallFromList(callId) {
+                const call = this.calls.find(c => c.id === callId);
+                alert(`Starting video call with ${call.name}`);
+            },
+
+            createCommunity() {
+                alert('Create Community - Add groups and members');
+            },
+
+            newGroup() {
+                alert('New Group - Select contacts to add');
+            },
+
+            newBroadcast() {
+                alert('New Broadcast - Select contacts to message');
+            },
+
+            starredMessages() {
+                alert('Starred Messages - View your saved messages');
+            },
+
+            settings() {
+                alert('Settings - Account, Privacy, Notifications, etc.');
+            },
+
+            showArchived() {
+                alert('Archived Chats - View archived conversations');
+            },
+
+            showContactInfo() {
+                alert(`Contact Info for ${this.currentChat.name}`);
+            },
+
+            chatMoreOptions() {
+                alert('More options - Search, Media, Mute, etc.');
+            },
+
+            toggleEmoji() {
+                alert('Emoji picker would open here');
+            },
+
+            attachFile() {
+                alert('Attach file - Choose from gallery, documents, camera, etc.');
+            }
+        };
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('menuDropdown');
+            if (!menu.contains(e.target) && !e.target.closest('button[onclick="app.toggleMenu()"]')) {
+                menu.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
